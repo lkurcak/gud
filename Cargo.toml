@@ -2,6 +2,12 @@
 name = "gud"
 version = "0.1.0"
 edition = "2024"
+description = "Interactive git helper"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/lkurcak/gud"
+readme = "README.md"
+keywords = ["git", "cli", "tui", "branch"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 anyhow = "1.0.104"
