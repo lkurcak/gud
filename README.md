@@ -5,6 +5,12 @@ Interactive git helper.
 ## Install
 
 ```sh
+brew install lkurcak/tap/gud
+```
+
+or
+
+```sh
 cargo install gud
 ```
 
