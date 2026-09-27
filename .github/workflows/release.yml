@@ -88,7 +88,7 @@ jobs:
             "$formula"
           git diff --exit-code --quiet "$formula" && { echo "::error::$formula unchanged"; exit 1; }
 
-          branch="gud-${VERSION}"
+          branch="bump-gud-${VERSION}"
           git config user.name "${APP_SLUG}[bot]"
           git config user.email "$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)+${APP_SLUG}[bot]@users.noreply.github.com"
           git switch -c "$branch"
