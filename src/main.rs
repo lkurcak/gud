@@ -1,5 +1,7 @@
 mod branch;
 mod git;
+mod log;
+mod ui;
 
 use clap::{Parser, Subcommand};
 
@@ -14,12 +16,15 @@ struct Cli {
 enum Command {
     /// Interactively switch to or delete local branches
     B,
+    /// Browse commits; soft/hard reset to one or edit its message
+    L,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let code = match cli.command {
         Command::B => branch::run()?,
+        Command::L => log::run()?,
     };
     std::process::exit(code);
 }

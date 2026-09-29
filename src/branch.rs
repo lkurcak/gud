@@ -1,4 +1,5 @@
 use crate::git::{self, Branch};
+use crate::ui::truncate;
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -182,8 +183,4 @@ fn draw(state: &mut State) -> Result<()> {
     }
     out.flush()?;
     Ok(())
-}
-
-fn truncate(s: &str, max: usize) -> String {
-    s.chars().take(max).collect()
 }
