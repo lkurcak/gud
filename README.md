@@ -1,5 +1,9 @@
 # gud
 
+[![crates.io](https://img.shields.io/crates/v/gud.svg)](https://crates.io/crates/gud)
+[![Release](https://github.com/lkurcak/gud/actions/workflows/release.yml/badge.svg)](https://github.com/lkurcak/gud/actions/workflows/release.yml)
+[![License](https://img.shields.io/crates/l/gud.svg)](#license)
+
 Interactive git helper.
 
 ## Install
