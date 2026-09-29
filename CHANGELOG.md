@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-29
+
 ### Added
 
 - `gud l` command to interactively browse commits, with a preview pane
@@ -31,5 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow publishing to crates.io on `v*` tags.
 - Dual licensing under MIT or Apache-2.0.
 
-[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/lkurcak/gud/compare/v0.1.2...v0.1.3
 [0.1.1]: https://github.com/lkurcak/gud/releases/tag/v0.1.1
