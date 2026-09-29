@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `gud l` command to interactively browse commits, with a preview pane
+  (message and diffstat) on terminals at least 80 columns wide.
+  - Navigate with arrow keys, `j`/`k`, `g`/`G`, `PgUp`/`PgDn`; more history
+    loads as you scroll.
+  - `Enter` shows the full commit in git's pager.
+  - `e` edits the selected commit's message in the git editor, rewriting any
+    commits above it. Only messages change, so it never conflicts, keeps
+    merges intact and leaves the index and working tree alone.
+  - `r` soft-resets to the selected commit; `R` hard-resets after confirmation.
+
 ## [0.1.1] - 2026-09-25
 
 ### Added
