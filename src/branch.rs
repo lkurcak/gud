@@ -141,7 +141,13 @@ fn draw(state: &mut State) -> Result<()> {
 
     let visible = state.branches.iter().enumerate().skip(state.offset).take(list_height);
     for (i, b) in visible {
-        let marker = if b.is_current { "* " } else { "  " };
+        let marker = if b.is_current {
+            "* "
+        } else if b.is_worktree {
+            "+ "
+        } else {
+            "  "
+        };
         let line = truncate(&format!("{marker}{}", b.name), width.saturating_sub(2));
         if i == state.selected {
             queue!(
@@ -154,6 +160,8 @@ fn draw(state: &mut State) -> Result<()> {
             )?;
         } else if b.is_current {
             queue!(out, SetForegroundColor(Color::Green), Print(format!("  {line}")), ResetColor)?;
+        } else if b.is_worktree {
+            queue!(out, SetForegroundColor(Color::Cyan), Print(format!("  {line}")), ResetColor)?;
         } else {
             queue!(out, Print(format!("  {line}")))?;
         }
