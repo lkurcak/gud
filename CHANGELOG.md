@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `gud b`
   - `Tab` shows/hides remote branches.
-  - `/` opens fuzzy branch search; `Esc` to cancel.
+  - `/` opens fuzzy search; `Esc` to cancel.
 
 ### Changed
 
