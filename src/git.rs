@@ -38,6 +38,8 @@ fn stdout_of(args: &[&str]) -> Result<String> {
 pub struct Branch {
     pub name: String,
     pub is_current: bool,
+    /// Checked out in another worktree.
+    pub is_worktree: bool,
 }
 
 /// Local branches, most recently committed first.
@@ -46,18 +48,21 @@ pub fn branches() -> Result<Vec<Branch>> {
         "for-each-ref",
         "--sort=refname",
         "--sort=-committerdate",
-        "--format=%(HEAD)%(refname:short)",
+        "--format=%(HEAD)%(worktreepath)\t%(refname:short)",
         "refs/heads/",
     ])?;
     Ok(out
         .lines()
         .filter(|l| !l.is_empty())
-        .map(|l| {
-            let (head, name) = l.split_at(1);
-            Branch {
+        .filter_map(|l| {
+            let (head, rest) = l.split_at(1);
+            let (worktree, name) = rest.split_once('\t')?;
+            let is_current = head == "*";
+            Some(Branch {
                 name: name.to_string(),
-                is_current: head == "*",
-            }
+                is_current,
+                is_worktree: !is_current && !worktree.is_empty(),
+            })
         })
         .collect())
 }
