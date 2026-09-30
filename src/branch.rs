@@ -1,5 +1,5 @@
 use crate::git::{self, Branch};
-use crate::ui::truncate;
+use crate::ui::{to_u16, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -18,7 +18,7 @@ impl TerminalGuard {
     fn new() -> Result<Self> {
         terminal::enable_raw_mode()?;
         execute!(stdout(), cursor::Hide)?;
-        Ok(TerminalGuard)
+        Ok(Self)
     }
 }
 
@@ -212,7 +212,7 @@ fn draw(state: &mut State) -> Result<()> {
     let drawn = list_height + footer_lines;
     queue!(out, cursor::MoveToColumn(0))?;
     if drawn > 1 {
-        queue!(out, cursor::MoveUp((drawn - 1) as u16))?;
+        queue!(out, cursor::MoveUp(to_u16(drawn - 1)))?;
     }
     out.flush()?;
     Ok(())

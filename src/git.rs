@@ -278,10 +278,10 @@ fn rewrite_commit(
         bail!("{}", String::from_utf8_lossy(&out.stderr).trim());
     }
     let raw = out.stdout;
-    let (header, body) = match raw.windows(2).position(|w| w == b"\n\n") {
-        Some(i) => (&raw[..i], &raw[i + 2..]),
-        None => (&raw[..], &[][..]),
-    };
+    let (header, body) = raw
+        .windows(2)
+        .position(|w| w == b"\n\n")
+        .map_or_else(|| (&raw[..], &[][..]), |i| (&raw[..i], &raw[i + 2..]));
 
     let mut new = Vec::with_capacity(raw.len());
     let mut in_signature = false;
