@@ -7,13 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-30
+
+### Added
+
+- `gud b`
+  - `Tab` shows/hides remote branches.
+  - `/` opens fuzzy search; `Esc` to cancel.
+
+### Changed
+
+- `gud b` can now delete the current branch.
+
 ## [0.1.4] - 2026-09-30
 
 ### Added
 
-- `t` in `gud l` tags the selected commit; type the tag name and press `Enter`
-  (`Esc` cancels). `T` creates an annotated tag, opening the git editor for
-  its message.
+- `gud l`
+  - `t` tags the selected commit; type the tag name and press `Enter` (`Esc` cancels).
+  - `T` creates an annotated tag, opening the git editor for its message.
 
 ## [0.1.3] - 2026-09-29
 
@@ -38,10 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Enter` switches to the selected branch.
   - `d` deletes the selected branch; `D` force-deletes it.
   - `q`, `Esc` or `Ctrl-C` quits.
-- Release workflow publishing to crates.io on `v*` tags.
-- Dual licensing under MIT or Apache-2.0.
 
-[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/lkurcak/gud/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lkurcak/gud/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/lkurcak/gud/compare/v0.1.2...v0.1.3
 [0.1.1]: https://github.com/lkurcak/gud/releases/tag/v0.1.1
