@@ -13,14 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `gud b` can list and check out remote-only branches. Press `Tab` to show
   them; selecting one creates a local tracking branch.
-- `/` in `gud b` starts a fuzzy branch search (including remote branches),
-  ranking by match score and highlighting matched characters. The query
-  supports readline-style editing.
+- `/` in `gud b` opens fuzzy search over all branches.
 
 ### Changed
 
-- `gud b` can delete the checked-out branch by switching to the default
-  branch first.
+- `gud b` can now delete the currently checked-out branch.
 
 ## [0.1.4] - 2026-09-30
 
