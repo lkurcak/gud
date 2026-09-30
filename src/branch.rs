@@ -36,7 +36,7 @@ impl Drop for TerminalGuard {
 
 enum Outcome {
     Quit,
-    Switch(String),
+    Switch(String, Option<String>),
 }
 
 struct State {
@@ -74,7 +74,7 @@ pub fn run() -> Result<i32> {
 
     match outcome {
         Outcome::Quit => Ok(0),
-        Outcome::Switch(name) => git::switch(&name),
+        Outcome::Switch(name, remote) => git::switch(&name, remote.as_deref()),
     }
 }
 
@@ -102,11 +102,16 @@ fn event_loop(state: &mut State) -> Result<Outcome> {
             KeyCode::End | KeyCode::Char('G') => state.selected = last,
             KeyCode::Enter => {
                 if let Some(b) = state.branches.get(state.selected) {
-                    return Ok(Outcome::Switch(b.name.clone()));
+                    return Ok(Outcome::Switch(b.name.clone(), b.remote.clone()));
                 }
             }
             KeyCode::Char(c @ ('d' | 'D')) => {
                 if let Some(b) = state.branches.get(state.selected) {
+                    if b.remote.is_some() {
+                        state.message =
+                            Some((false, "Remote branches cannot be deleted here".into()));
+                        continue;
+                    }
                     state.message = Some(git::delete_branch(&b.name, b.is_current, c == 'D')?);
                     state.reload()?;
                     if state.branches.is_empty() {
@@ -157,7 +162,8 @@ fn draw(state: &mut State) -> Result<()> {
         } else {
             "  "
         };
-        let line = truncate(&format!("{marker}{}", b.name), width.saturating_sub(2));
+        let label = b.remote.as_deref().unwrap_or(&b.name);
+        let line = truncate(&format!("{marker}{label}"), width.saturating_sub(2));
         if i == state.selected {
             queue!(
                 out,
@@ -178,6 +184,13 @@ fn draw(state: &mut State) -> Result<()> {
             queue!(
                 out,
                 SetForegroundColor(Color::Cyan),
+                Print(format!("  {line}")),
+                ResetColor
+            )?;
+        } else if b.remote.is_some() {
+            queue!(
+                out,
+                SetForegroundColor(Color::DarkGrey),
                 Print(format!("  {line}")),
                 ResetColor
             )?;
@@ -202,7 +215,7 @@ fn draw(state: &mut State) -> Result<()> {
         out,
         SetForegroundColor(Color::DarkGrey),
         Print(truncate(
-            "↑/k ↓/j move · enter switch · d delete · D force delete · q quit",
+            "↑/k ↓/j move · enter switch/track remote · d delete · D force delete · q quit",
             width
         )),
         ResetColor,
