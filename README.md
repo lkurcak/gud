@@ -22,7 +22,7 @@ cargo install gud
 
 ```sh
 gud b   # interactively switch to or delete local branches
-gud l   # browse commits; tag (`t`, or `T` for annotated), soft/hard reset or edit a commit message
+gud l   # browse commits; tag, soft/hard reset or edit a commit message
 ```
 
 ## License
