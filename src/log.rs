@@ -188,7 +188,14 @@ fn reset(state: &mut State, index: usize, hard: bool) -> Result<()> {
     state.message = Some(if ok {
         let details = output.lines().next().unwrap_or("");
         let summary = format!("{kind} reset to {short}.");
-        (true, if details.is_empty() { summary } else { format!("{summary} {details}") })
+        (
+            true,
+            if details.is_empty() {
+                summary
+            } else {
+                format!("{summary} {details}")
+            },
+        )
     } else {
         (false, output)
     });
@@ -280,7 +287,12 @@ fn draw(state: &mut State) -> Result<()> {
             queue!(out, Print(" ".repeat(list_width)))?;
         }
         if preview_width > 0 {
-            queue!(out, SetForegroundColor(Color::DarkGrey), Print("│ "), ResetColor)?;
+            queue!(
+                out,
+                SetForegroundColor(Color::DarkGrey),
+                Print("│ "),
+                ResetColor
+            )?;
             let line = state
                 .preview
                 .as_ref()

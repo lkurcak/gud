@@ -19,7 +19,11 @@ fn git_with_input(args: &[&str], input: &[u8]) -> Result<Output> {
         .stderr(Stdio::piped())
         .spawn()
         .context("failed to run git")?;
-    child.stdin.take().expect("stdin is piped").write_all(input)?;
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(input)?;
     Ok(child.wait_with_output()?)
 }
 
@@ -62,7 +66,11 @@ pub fn branches() -> Result<Vec<Branch>> {
 pub fn delete_branch(name: &str, force: bool) -> Result<(bool, String)> {
     let flag = if force { "-D" } else { "-d" };
     let out = git(&["branch", flag, name])?;
-    let text = if out.status.success() { &out.stdout } else { &out.stderr };
+    let text = if out.status.success() {
+        &out.stdout
+    } else {
+        &out.stderr
+    };
     Ok((
         out.status.success(),
         String::from_utf8_lossy(text).trim().to_string(),
@@ -140,7 +148,11 @@ pub fn show(hash: &str) -> Result<()> {
 pub fn reset(hash: &str, hard: bool) -> Result<(bool, String)> {
     let flag = if hard { "--hard" } else { "--soft" };
     let out = git(&["reset", flag, hash])?;
-    let text = if out.status.success() { &out.stdout } else { &out.stderr };
+    let text = if out.status.success() {
+        &out.stdout
+    } else {
+        &out.stderr
+    };
     Ok((
         out.status.success(),
         String::from_utf8_lossy(text).trim().to_string(),
@@ -154,7 +166,9 @@ pub fn message(hash: &str) -> Result<String> {
 
 /// Path of a file inside the repository's git directory.
 pub fn git_path(name: &str) -> Result<PathBuf> {
-    Ok(PathBuf::from(stdout_of(&["rev-parse", "--git-path", name])?.trim()))
+    Ok(PathBuf::from(
+        stdout_of(&["rev-parse", "--git-path", name])?.trim(),
+    ))
 }
 
 /// The character git treats as starting a comment line in commit messages.
@@ -188,14 +202,18 @@ pub fn edit_file(path: &Path) -> Result<bool> {
     #[cfg(not(windows))]
     let mut cmd = {
         let mut c = Command::new("sh");
-        c.arg("-c").arg(format!("{editor} \"$@\"")).arg(&editor).arg(path);
+        c.arg("-c")
+            .arg(format!("{editor} \"$@\""))
+            .arg(&editor)
+            .arg(path);
         c
     };
     #[cfg(windows)]
     let mut cmd = {
         use std::os::windows::process::CommandExt;
         let mut c = Command::new("cmd");
-        c.arg("/C").raw_arg(format!("{editor} \"{}\"", path.display()));
+        c.arg("/C")
+            .raw_arg(format!("{editor} \"{}\"", path.display()));
         c
     };
     Ok(cmd.status().context("failed to run editor")?.success())

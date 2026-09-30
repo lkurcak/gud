@@ -137,9 +137,18 @@ fn draw(state: &mut State) -> Result<()> {
     }
 
     let mut out = stdout();
-    queue!(out, cursor::MoveToColumn(0), terminal::Clear(ClearType::FromCursorDown))?;
+    queue!(
+        out,
+        cursor::MoveToColumn(0),
+        terminal::Clear(ClearType::FromCursorDown)
+    )?;
 
-    let visible = state.branches.iter().enumerate().skip(state.offset).take(list_height);
+    let visible = state
+        .branches
+        .iter()
+        .enumerate()
+        .skip(state.offset)
+        .take(list_height);
     for (i, b) in visible {
         let marker = if b.is_current { "* " } else { "  " };
         let line = truncate(&format!("{marker}{}", b.name), width.saturating_sub(2));
@@ -153,7 +162,12 @@ fn draw(state: &mut State) -> Result<()> {
                 ResetColor,
             )?;
         } else if b.is_current {
-            queue!(out, SetForegroundColor(Color::Green), Print(format!("  {line}")), ResetColor)?;
+            queue!(
+                out,
+                SetForegroundColor(Color::Green),
+                Print(format!("  {line}")),
+                ResetColor
+            )?;
         } else {
             queue!(out, Print(format!("  {line}")))?;
         }
@@ -163,7 +177,13 @@ fn draw(state: &mut State) -> Result<()> {
     if let Some((ok, msg)) = &state.message {
         let color = if *ok { Color::Green } else { Color::Red };
         let msg = msg.lines().next().unwrap_or("");
-        queue!(out, SetForegroundColor(color), Print(truncate(msg, width)), ResetColor, Print("\r\n"))?;
+        queue!(
+            out,
+            SetForegroundColor(color),
+            Print(truncate(msg, width)),
+            ResetColor,
+            Print("\r\n")
+        )?;
     }
     queue!(
         out,
