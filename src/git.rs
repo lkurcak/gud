@@ -44,10 +44,13 @@ pub struct Branch {
     pub remote: Option<String>,
 }
 
-/// Local branches followed by remote branches without a local counterpart,
-/// each group most recently committed first.
-pub fn branches() -> Result<Vec<Branch>> {
+/// Local branches, most recently committed first. With `include_remote`, followed by
+/// remote branches without a local counterpart, also most recently committed first.
+pub fn branches(include_remote: bool) -> Result<Vec<Branch>> {
     let mut all = local_branches()?;
+    if !include_remote {
+        return Ok(all);
+    }
     let remotes = stdout_of(&[
         "for-each-ref",
         "--sort=refname",
