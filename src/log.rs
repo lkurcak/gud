@@ -1,5 +1,5 @@
 use crate::git::{self, Commit};
-use crate::ui::truncate;
+use crate::ui::{to_u16, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -8,6 +8,7 @@ use crossterm::{
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use std::fmt::Write as _;
 use std::fs;
 use std::io::{Write, stdout};
 
@@ -23,7 +24,7 @@ impl TerminalGuard {
     fn new() -> Result<Self> {
         terminal::enable_raw_mode()?;
         execute!(stdout(), EnterAlternateScreen, cursor::Hide)?;
-        Ok(TerminalGuard)
+        Ok(Self)
     }
 }
 
@@ -188,7 +189,14 @@ fn reset(state: &mut State, index: usize, hard: bool) -> Result<()> {
     state.message = Some(if ok {
         let details = output.lines().next().unwrap_or("");
         let summary = format!("{kind} reset to {short}.");
-        (true, if details.is_empty() { summary } else { format!("{summary} {details}") })
+        (
+            true,
+            if details.is_empty() {
+                summary
+            } else {
+                format!("{summary} {details}")
+            },
+        )
     } else {
         (false, output)
     });
@@ -235,7 +243,7 @@ fn edit_message(state: &mut State) -> Result<()> {
             Ok((new_hash, count)) => {
                 let mut msg = format!("Reworded {short} → {}.", &new_hash[..short.len()]);
                 if count > 1 {
-                    msg.push_str(&format!(" Rewrote {count} commits."));
+                    let _ = write!(msg, " Rewrote {count} commits.");
                 }
                 (true, msg)
             }
@@ -272,7 +280,7 @@ fn draw(state: &mut State) -> Result<()> {
 
     let mut out = stdout();
     for row in 0..body_height {
-        queue!(out, cursor::MoveTo(0, row as u16))?;
+        queue!(out, cursor::MoveTo(0, to_u16(row)))?;
         let index = state.offset + row;
         if let Some(c) = state.commits.get(index) {
             draw_commit(&mut out, c, index == state.selected, list_width)?;
@@ -280,7 +288,12 @@ fn draw(state: &mut State) -> Result<()> {
             queue!(out, Print(" ".repeat(list_width)))?;
         }
         if preview_width > 0 {
-            queue!(out, SetForegroundColor(Color::DarkGrey), Print("│ "), ResetColor)?;
+            queue!(
+                out,
+                SetForegroundColor(Color::DarkGrey),
+                Print("│ "),
+                ResetColor
+            )?;
             let line = state
                 .preview
                 .as_ref()
@@ -302,12 +315,12 @@ fn draw(state: &mut State) -> Result<()> {
             Color::Red
         };
         let msg = msg.lines().next().unwrap_or("");
-        queue!(out, cursor::MoveTo(0, row as u16))?;
+        queue!(out, cursor::MoveTo(0, to_u16(row)))?;
         print_span(&mut out, Some(color), msg, width)?;
         queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
         row += 1;
     }
-    queue!(out, cursor::MoveTo(0, row as u16))?;
+    queue!(out, cursor::MoveTo(0, to_u16(row)))?;
     print_span(
         &mut out,
         Some(Color::DarkGrey),

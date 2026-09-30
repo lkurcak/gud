@@ -1,5 +1,5 @@
 use crate::git::{self, Branch};
-use crate::ui::truncate;
+use crate::ui::{to_u16, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -18,7 +18,7 @@ impl TerminalGuard {
     fn new() -> Result<Self> {
         terminal::enable_raw_mode()?;
         execute!(stdout(), cursor::Hide)?;
-        Ok(TerminalGuard)
+        Ok(Self)
     }
 }
 
@@ -137,9 +137,18 @@ fn draw(state: &mut State) -> Result<()> {
     }
 
     let mut out = stdout();
-    queue!(out, cursor::MoveToColumn(0), terminal::Clear(ClearType::FromCursorDown))?;
+    queue!(
+        out,
+        cursor::MoveToColumn(0),
+        terminal::Clear(ClearType::FromCursorDown)
+    )?;
 
-    let visible = state.branches.iter().enumerate().skip(state.offset).take(list_height);
+    let visible = state
+        .branches
+        .iter()
+        .enumerate()
+        .skip(state.offset)
+        .take(list_height);
     for (i, b) in visible {
         let marker = if b.is_current {
             "* "
@@ -159,9 +168,19 @@ fn draw(state: &mut State) -> Result<()> {
                 ResetColor,
             )?;
         } else if b.is_current {
-            queue!(out, SetForegroundColor(Color::Green), Print(format!("  {line}")), ResetColor)?;
+            queue!(
+                out,
+                SetForegroundColor(Color::Green),
+                Print(format!("  {line}")),
+                ResetColor
+            )?;
         } else if b.is_worktree {
-            queue!(out, SetForegroundColor(Color::Cyan), Print(format!("  {line}")), ResetColor)?;
+            queue!(
+                out,
+                SetForegroundColor(Color::Cyan),
+                Print(format!("  {line}")),
+                ResetColor
+            )?;
         } else {
             queue!(out, Print(format!("  {line}")))?;
         }
@@ -171,7 +190,13 @@ fn draw(state: &mut State) -> Result<()> {
     if let Some((ok, msg)) = &state.message {
         let color = if *ok { Color::Green } else { Color::Red };
         let msg = msg.lines().next().unwrap_or("");
-        queue!(out, SetForegroundColor(color), Print(truncate(msg, width)), ResetColor, Print("\r\n"))?;
+        queue!(
+            out,
+            SetForegroundColor(color),
+            Print(truncate(msg, width)),
+            ResetColor,
+            Print("\r\n")
+        )?;
     }
     queue!(
         out,
@@ -187,7 +212,7 @@ fn draw(state: &mut State) -> Result<()> {
     let drawn = list_height + footer_lines;
     queue!(out, cursor::MoveToColumn(0))?;
     if drawn > 1 {
-        queue!(out, cursor::MoveUp((drawn - 1) as u16))?;
+        queue!(out, cursor::MoveUp(to_u16(drawn - 1)))?;
     }
     out.flush()?;
     Ok(())
