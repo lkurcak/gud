@@ -69,7 +69,8 @@ fn label(b: &Branch) -> &str {
 
 impl State {
     fn reload(&mut self) -> Result<()> {
-        self.branches = git::branches(self.include_remote)?;
+        // Search always covers remote branches, whatever the tab setting is.
+        self.branches = git::branches(self.include_remote || self.searching)?;
         self.refilter();
         Ok(())
     }
@@ -102,6 +103,15 @@ impl State {
             self.view = scored.into_iter().map(|(_, m)| m).collect();
         }
         self.selected = self.selected.min(self.view.len().saturating_sub(1));
+    }
+
+    /// Enters or leaves search mode, clearing the query and reloading the branch list.
+    fn set_searching(&mut self, searching: bool) -> Result<()> {
+        self.searching = searching;
+        self.query.clear();
+        self.selected = 0;
+        self.offset = 0;
+        self.reload()
     }
 
     /// Called after the query text changed.
@@ -167,9 +177,7 @@ fn event_loop(state: &mut State) -> Result<Outcome> {
                     return Ok(Outcome::Quit);
                 }
                 KeyCode::Esc => {
-                    state.searching = false;
-                    state.query.clear();
-                    state.query_changed();
+                    state.set_searching(false)?;
                 }
                 KeyCode::Enter => {
                     if let Some(b) = state.selected_branch() {
@@ -197,8 +205,8 @@ fn event_loop(state: &mut State) -> Result<Outcome> {
                 return Ok(Outcome::Quit);
             }
             KeyCode::Char('/') => {
-                state.searching = true;
                 state.message = None;
+                state.set_searching(true)?;
             }
             KeyCode::Char('q') | KeyCode::Esc => return Ok(Outcome::Quit),
             KeyCode::Tab => {
