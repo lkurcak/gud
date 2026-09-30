@@ -1,5 +1,5 @@
 use crate::git::{self, Branch};
-use crate::ui::{to_u16, to_u32, truncate};
+use crate::ui::{LineEditor, to_u16, to_u32, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -56,7 +56,7 @@ struct State {
     view: Vec<Match>,
     include_remote: bool,
     searching: bool,
-    query: String,
+    query: LineEditor,
     matcher: Matcher,
     selected: usize,
     offset: usize,
@@ -76,7 +76,8 @@ impl State {
 
     /// Recomputes `view` from `branches` and `query`, keeping the selection in range.
     fn refilter(&mut self) {
-        if self.query.is_empty() {
+        let query = self.query.text();
+        if query.is_empty() {
             self.view = (0..self.branches.len())
                 .map(|index| Match {
                     index,
@@ -84,7 +85,7 @@ impl State {
                 })
                 .collect();
         } else {
-            let pattern = Pattern::parse(&self.query, CaseMatching::Smart, Normalization::Smart);
+            let pattern = Pattern::parse(&query, CaseMatching::Smart, Normalization::Smart);
             let mut buf = Vec::new();
             let mut scored = Vec::new();
             for (index, b) in self.branches.iter().enumerate() {
@@ -103,8 +104,8 @@ impl State {
         self.selected = self.selected.min(self.view.len().saturating_sub(1));
     }
 
-    fn set_query(&mut self, query: String) {
-        self.query = query;
+    /// Called after the query text changed.
+    fn query_changed(&mut self) {
         self.selected = 0;
         self.offset = 0;
         self.refilter();
@@ -128,7 +129,7 @@ pub fn run() -> Result<i32> {
         branches,
         include_remote: false,
         searching: false,
-        query: String::new(),
+        query: LineEditor::default(),
         matcher: Matcher::new(Config::DEFAULT),
         selected: 0,
         offset: 0,
@@ -167,7 +168,8 @@ fn event_loop(state: &mut State) -> Result<Outcome> {
                 }
                 KeyCode::Esc => {
                     state.searching = false;
-                    state.set_query(String::new());
+                    state.query.clear();
+                    state.query_changed();
                 }
                 KeyCode::Enter => {
                     if let Some(b) = state.selected_branch() {
@@ -176,19 +178,17 @@ fn event_loop(state: &mut State) -> Result<Outcome> {
                 }
                 KeyCode::Up => state.selected = state.selected.saturating_sub(1),
                 KeyCode::Down => state.selected = (state.selected + 1).min(last),
-                KeyCode::Backspace => {
-                    let mut query = state.query.clone();
-                    if query.pop().is_none() {
-                        state.searching = false;
+                KeyCode::Char('p') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    state.selected = state.selected.saturating_sub(1);
+                }
+                KeyCode::Char('n') if modifiers.contains(KeyModifiers::CONTROL) => {
+                    state.selected = (state.selected + 1).min(last);
+                }
+                _ => {
+                    if state.query.handle(code, modifiers) {
+                        state.query_changed();
                     }
-                    state.set_query(query);
                 }
-                KeyCode::Char(c) if !modifiers.contains(KeyModifiers::CONTROL) => {
-                    let mut query = state.query.clone();
-                    query.push(c);
-                    state.set_query(query);
-                }
-                _ => {}
             }
             continue;
         }
@@ -317,9 +317,14 @@ fn draw(state: &mut State) -> Result<()> {
         } else {
             ""
         };
+        let (before, at, after) = state.query.split_at_cursor();
+        queue!(out, Print(format!("/{before}")))?;
         queue!(
             out,
-            Print(truncate(&format!("/{}█{suffix}", state.query), width)),
+            SetAttribute(Attribute::Reverse),
+            Print(at.unwrap_or(' ')),
+            SetAttribute(Attribute::Reset),
+            Print(format!("{after}{suffix}")),
         )?;
     } else {
         queue!(
