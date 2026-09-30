@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-30
+
+### Added
+
+- `gud b` can list and check out remote-only branches. Press `Tab` to show
+  them; selecting one creates a local tracking branch.
+- `/` in `gud b` starts a fuzzy branch search (including remote branches),
+  ranking by match score and highlighting matched characters. The query
+  supports readline-style editing.
+
+### Changed
+
+- `gud b` can delete the checked-out branch by switching to the default
+  branch first.
+
 ## [0.1.4] - 2026-09-30
 
 ### Added
@@ -41,7 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release workflow publishing to crates.io on `v*` tags.
 - Dual licensing under MIT or Apache-2.0.
 
-[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/lkurcak/gud/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lkurcak/gud/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/lkurcak/gud/compare/v0.1.2...v0.1.3
 [0.1.1]: https://github.com/lkurcak/gud/releases/tag/v0.1.1
