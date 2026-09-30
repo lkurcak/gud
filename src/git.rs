@@ -165,8 +165,15 @@ pub fn reset(hash: &str, hard: bool) -> Result<(bool, String)> {
 }
 
 /// Runs `git tag`, returning git's message and whether it succeeded.
-pub fn tag(name: &str, hash: &str) -> Result<(bool, String)> {
-    let out = git(&["tag", name, hash])?;
+/// With `message_file`, creates an annotated tag whose message is read from it.
+pub fn tag(name: &str, hash: &str, message_file: Option<&Path>) -> Result<(bool, String)> {
+    let mut args = vec!["tag".to_string()];
+    if let Some(path) = message_file {
+        args.extend(["-a".into(), "-F".into(), path.display().to_string()]);
+    }
+    args.extend([name.to_string(), hash.to_string()]);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = git(&args)?;
     Ok((
         out.status.success(),
         String::from_utf8_lossy(&out.stderr).trim().to_string(),

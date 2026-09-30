@@ -65,8 +65,8 @@ struct State {
     /// Commit awaiting confirmation of a hard reset.
     confirm_hard_reset: Option<usize>,
     preview: Option<Preview>,
-    /// Commit being tagged and the tag name typed so far.
-    tag_input: Option<(usize, String)>,
+    /// Commit being tagged, the tag name typed so far, and whether the tag is annotated.
+    tag_input: Option<(usize, String, bool)>,
 }
 
 impl State {
@@ -144,21 +144,21 @@ fn event_loop(state: &mut State) -> Result<()> {
             continue;
         }
 
-        if let Some((index, mut name)) = state.tag_input.take() {
+        if let Some((index, mut name, annotated)) = state.tag_input.take() {
             match code {
                 KeyCode::Esc => {
                     state.message = Some((false, "Tag cancelled.".to_string()));
                 }
-                KeyCode::Enter => tag(state, index, name.trim())?,
+                KeyCode::Enter => tag(state, index, name.trim(), annotated)?,
                 KeyCode::Backspace => {
                     name.pop();
-                    state.tag_input = Some((index, name));
+                    state.tag_input = Some((index, name, annotated));
                 }
                 KeyCode::Char(ch) if !modifiers.contains(KeyModifiers::CONTROL) => {
                     name.push(ch);
-                    state.tag_input = Some((index, name));
+                    state.tag_input = Some((index, name, annotated));
                 }
-                _ => state.tag_input = Some((index, name)),
+                _ => state.tag_input = Some((index, name, annotated)),
             }
             continue;
         }
@@ -180,10 +180,10 @@ fn event_loop(state: &mut State) -> Result<()> {
             }
             KeyCode::Char('e') => edit_message(state)?,
             KeyCode::Char('r') => reset(state, state.selected, false)?,
-            KeyCode::Char('t') => {
+            KeyCode::Char(key @ ('t' | 'T')) => {
                 if state.current().is_some() {
                     state.message = None;
-                    state.tag_input = Some((state.selected, String::new()));
+                    state.tag_input = Some((state.selected, String::new(), key == 'T'));
                 }
             }
             KeyCode::Char('R') => {
@@ -235,7 +235,7 @@ fn reset(state: &mut State, index: usize, hard: bool) -> Result<()> {
     state.reload()
 }
 
-fn tag(state: &mut State, index: usize, name: &str) -> Result<()> {
+fn tag(state: &mut State, index: usize, name: &str, annotated: bool) -> Result<()> {
     let Some(c) = state.commits.get(index) else {
         return Ok(());
     };
@@ -243,9 +243,41 @@ fn tag(state: &mut State, index: usize, name: &str) -> Result<()> {
         state.message = Some((false, "Empty tag name; aborted.".to_string()));
         return Ok(());
     }
-    let (ok, output) = git::tag(name, &c.hash)?;
+    let (hash, short) = (c.hash.clone(), c.short.clone());
+    let (ok, output) = if annotated {
+        let comment = git::comment_char();
+        let path = git::git_path("GUD_TAG_EDITMSG")?;
+        fs::write(
+            &path,
+            format!(
+                "\n{comment} Write a message for tag {name} on {short}.\n\
+                 {comment} Lines starting with '{comment}' will be ignored, \
+                 and an empty message aborts.\n"
+            ),
+        )?;
+        let edited = suspended(|| git::edit_file(&path))?;
+        let text = fs::read_to_string(&path);
+        let _ = fs::remove_file(&path);
+        if !edited? {
+            state.message = Some((false, "Editor failed; no tag created.".to_string()));
+            return Ok(());
+        }
+        let message = git::stripspace(&text?)?;
+        if message.trim().is_empty() {
+            state.message = Some((false, "Empty message; aborted.".to_string()));
+            return Ok(());
+        }
+        // Write the cleaned message back so git does not re-interpret comments.
+        fs::write(&path, message)?;
+        let result = git::tag(name, &hash, Some(&path));
+        let _ = fs::remove_file(&path);
+        result?
+    } else {
+        git::tag(name, &hash, None)?
+    };
     state.message = Some(if ok {
-        (true, format!("Tagged {} as {name}.", c.short))
+        let kind = if annotated { "annotated tag" } else { "tag" };
+        (true, format!("Created {kind} {name} on {short}."))
     } else {
         (false, output)
     });
@@ -355,12 +387,13 @@ fn draw(state: &mut State) -> Result<()> {
     }
 
     let mut row = body_height;
-    if let Some((_, name)) = &state.tag_input {
+    if let Some((_, name, annotated)) = &state.tag_input {
+        let kind = if *annotated { "Annotated tag" } else { "Tag" };
         queue!(out, cursor::MoveTo(0, to_u16(row)))?;
         print_span(
             &mut out,
             Some(Color::Yellow),
-            &format!("Tag name: {name}█  (enter to tag, esc to cancel)"),
+            &format!("{kind} name: {name}█  (enter to continue, esc to cancel)"),
             width,
         )?;
         queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
@@ -383,7 +416,7 @@ fn draw(state: &mut State) -> Result<()> {
     print_span(
         &mut out,
         Some(Color::DarkGrey),
-        "↑/k ↓/j move · enter show · e edit message · t tag · r soft reset · R hard reset · q quit",
+        "↑/k ↓/j move · enter show · e edit message · t/T tag/annotated tag · r soft reset · R hard reset · q quit",
         width,
     )?;
     queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
