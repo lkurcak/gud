@@ -17,15 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `gud b`: `d`/`D` can now delete the current branch.
+- `gud b`
+  - `d`/`D` can now delete the current branch.
 
 ## [0.1.4] - 2026-09-30
 
 ### Added
 
-- `gud l`: `t` tags the selected commit; type the tag name and press `Enter`
-  (`Esc` cancels). `T` creates an annotated tag, opening the git editor for
-  its message.
+- `gud l`
+  - `t` tags the selected commit; type the tag name and press `Enter` (`Esc` cancels).
+  - `T` creates an annotated tag, opening the git editor for its message.
 
 ## [0.1.3] - 2026-09-29
 
