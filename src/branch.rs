@@ -237,7 +237,7 @@ fn draw(state: &mut State) -> Result<()> {
     Ok(())
 }
 
-fn hint(include_remote: bool) -> &'static str {
+const fn hint(include_remote: bool) -> &'static str {
     if include_remote {
         "↑/k ↓/j move · enter switch/track remote · tab hide remote · d delete · D force delete · q quit"
     } else {
