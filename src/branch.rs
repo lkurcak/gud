@@ -107,7 +107,7 @@ fn event_loop(state: &mut State) -> Result<Outcome> {
             }
             KeyCode::Char(c @ ('d' | 'D')) => {
                 if let Some(b) = state.branches.get(state.selected) {
-                    state.message = Some(git::delete_branch(&b.name, c == 'D')?);
+                    state.message = Some(git::delete_branch(&b.name, b.is_current, c == 'D')?);
                     state.reload()?;
                     if state.branches.is_empty() {
                         return Ok(Outcome::Quit);

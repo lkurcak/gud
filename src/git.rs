@@ -67,8 +67,69 @@ pub fn branches() -> Result<Vec<Branch>> {
         .collect())
 }
 
+/// The local default branch: what `origin/HEAD` points to, else `main` or `master`.
+fn default_branch() -> Option<String> {
+    let exists = |name: &str| {
+        git(&[
+            "show-ref",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{name}"),
+        ])
+        .is_ok_and(|o| o.status.success())
+    };
+    let remote = stdout_of(&["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .ok()
+        .and_then(|s| s.trim().strip_prefix("origin/").map(str::to_string));
+    remote
+        .into_iter()
+        .chain(["main", "master"].map(String::from))
+        .find(|name| exists(name))
+}
+
+fn failure(out: &Output) -> String {
+    String::from_utf8_lossy(&out.stderr).trim().to_string()
+}
+
+/// Deletes `name`. If it is the checked-out branch, first switches to the
+/// default branch, switching back if the deletion is then refused.
+pub fn delete_branch(name: &str, is_current: bool, force: bool) -> Result<(bool, String)> {
+    if !is_current {
+        return run_delete(name, force);
+    }
+    let Some(default) = default_branch() else {
+        return Ok((
+            false,
+            "Cannot delete the current branch: no default branch found".into(),
+        ));
+    };
+    if default == name {
+        return Ok((
+            false,
+            format!("Cannot delete the default branch '{default}' while it is checked out"),
+        ));
+    }
+    let out = git(&["switch", "--quiet", &default])?;
+    if !out.status.success() {
+        return Ok((false, failure(&out)));
+    }
+    let (ok, msg) = run_delete(name, force)?;
+    if ok {
+        return Ok((true, format!("Switched to '{default}'. {msg}")));
+    }
+    // Leave the user where they started rather than stranded on another branch.
+    let back = git(&["switch", "--quiet", name])?;
+    if !back.status.success() {
+        return Ok((
+            false,
+            format!("{msg} (and failed to switch back: {})", failure(&back)),
+        ));
+    }
+    Ok((false, msg))
+}
+
 /// Runs `git branch -d/-D`, returning git's message and whether it succeeded.
-pub fn delete_branch(name: &str, force: bool) -> Result<(bool, String)> {
+fn run_delete(name: &str, force: bool) -> Result<(bool, String)> {
     let flag = if force { "-D" } else { "-d" };
     let out = git(&["branch", flag, name])?;
     let text = if out.status.success() {
