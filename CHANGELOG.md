@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `t` in `gud l` tags the selected commit; type the tag name and press `Enter`
+  (`Esc` cancels).
+
 ## [0.1.3] - 2026-09-29
 
 ### Added

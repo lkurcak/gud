@@ -65,6 +65,8 @@ struct State {
     /// Commit awaiting confirmation of a hard reset.
     confirm_hard_reset: Option<usize>,
     preview: Option<Preview>,
+    /// Commit being tagged and the tag name typed so far.
+    tag_input: Option<(usize, String)>,
 }
 
 impl State {
@@ -105,6 +107,7 @@ pub fn run() -> Result<i32> {
         message: None,
         confirm_hard_reset: None,
         preview: None,
+        tag_input: None,
     };
 
     let _guard = TerminalGuard::new()?;
@@ -141,6 +144,25 @@ fn event_loop(state: &mut State) -> Result<()> {
             continue;
         }
 
+        if let Some((index, mut name)) = state.tag_input.take() {
+            match code {
+                KeyCode::Esc => {
+                    state.message = Some((false, "Tag cancelled.".to_string()));
+                }
+                KeyCode::Enter => tag(state, index, name.trim())?,
+                KeyCode::Backspace => {
+                    name.pop();
+                    state.tag_input = Some((index, name));
+                }
+                KeyCode::Char(ch) if !modifiers.contains(KeyModifiers::CONTROL) => {
+                    name.push(ch);
+                    state.tag_input = Some((index, name));
+                }
+                _ => state.tag_input = Some((index, name)),
+            }
+            continue;
+        }
+
         let page = page_size();
         match code {
             KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
@@ -158,6 +180,12 @@ fn event_loop(state: &mut State) -> Result<()> {
             }
             KeyCode::Char('e') => edit_message(state)?,
             KeyCode::Char('r') => reset(state, state.selected, false)?,
+            KeyCode::Char('t') => {
+                if state.current().is_some() {
+                    state.message = None;
+                    state.tag_input = Some((state.selected, String::new()));
+                }
+            }
             KeyCode::Char('R') => {
                 if let Some(c) = state.current() {
                     state.message = Some((
@@ -204,6 +232,23 @@ fn reset(state: &mut State, index: usize, hard: bool) -> Result<()> {
         state.selected = 0;
         state.offset = 0;
     }
+    state.reload()
+}
+
+fn tag(state: &mut State, index: usize, name: &str) -> Result<()> {
+    let Some(c) = state.commits.get(index) else {
+        return Ok(());
+    };
+    if name.is_empty() {
+        state.message = Some((false, "Empty tag name; aborted.".to_string()));
+        return Ok(());
+    }
+    let (ok, output) = git::tag(name, &c.hash)?;
+    state.message = Some(if ok {
+        (true, format!("Tagged {} as {name}.", c.short))
+    } else {
+        (false, output)
+    });
     state.reload()
 }
 
@@ -258,7 +303,11 @@ fn draw(state: &mut State) -> Result<()> {
         (0, _) | (_, 0) => (80, 24),
         (w, h) => (w as usize, h as usize),
     };
-    let footer_lines = if state.message.is_some() { 2 } else { 1 };
+    let footer_lines = if state.message.is_some() || state.tag_input.is_some() {
+        2
+    } else {
+        1
+    };
     let body_height = height.saturating_sub(footer_lines).max(1);
     let list_height = state.commits.len().min(body_height);
 
@@ -306,7 +355,17 @@ fn draw(state: &mut State) -> Result<()> {
     }
 
     let mut row = body_height;
-    if let Some((ok, msg)) = &state.message {
+    if let Some((_, name)) = &state.tag_input {
+        queue!(out, cursor::MoveTo(0, to_u16(row)))?;
+        print_span(
+            &mut out,
+            Some(Color::Yellow),
+            &format!("Tag name: {name}█  (enter to tag, esc to cancel)"),
+            width,
+        )?;
+        queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
+        row += 1;
+    } else if let Some((ok, msg)) = &state.message {
         let color = if state.confirm_hard_reset.is_some() {
             Color::Yellow
         } else if *ok {
@@ -324,7 +383,7 @@ fn draw(state: &mut State) -> Result<()> {
     print_span(
         &mut out,
         Some(Color::DarkGrey),
-        "↑/k ↓/j move · enter show · e edit message · r soft reset · R hard reset · q quit",
+        "↑/k ↓/j move · enter show · e edit message · t tag · r soft reset · R hard reset · q quit",
         width,
     )?;
     queue!(out, terminal::Clear(ClearType::UntilNewLine))?;

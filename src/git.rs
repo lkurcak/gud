@@ -164,6 +164,15 @@ pub fn reset(hash: &str, hard: bool) -> Result<(bool, String)> {
     ))
 }
 
+/// Runs `git tag`, returning git's message and whether it succeeded.
+pub fn tag(name: &str, hash: &str) -> Result<(bool, String)> {
+    let out = git(&["tag", name, hash])?;
+    Ok((
+        out.status.success(),
+        String::from_utf8_lossy(&out.stderr).trim().to_string(),
+    ))
+}
+
 /// Full commit message, re-encoded to UTF-8.
 pub fn message(hash: &str) -> Result<String> {
     stdout_of(&["log", "-1", "--format=%B", hash, "--"])
