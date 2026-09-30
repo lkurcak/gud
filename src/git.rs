@@ -40,10 +40,46 @@ pub struct Branch {
     pub is_current: bool,
     /// Checked out in another worktree.
     pub is_worktree: bool,
+    /// For a remote-only branch, the remote ref (e.g. `origin/foo`); `name` is the local name to create.
+    pub remote: Option<String>,
 }
 
-/// Local branches, most recently committed first.
-pub fn branches() -> Result<Vec<Branch>> {
+/// Local branches, most recently committed first. With `include_remote`, followed by
+/// remote branches without a local counterpart, also most recently committed first.
+pub fn branches(include_remote: bool) -> Result<Vec<Branch>> {
+    let mut all = local_branches()?;
+    if !include_remote {
+        return Ok(all);
+    }
+    let remotes = stdout_of(&[
+        "for-each-ref",
+        "--sort=refname",
+        "--sort=-committerdate",
+        "--format=%(refname)",
+        "refs/remotes/",
+    ])?;
+    let mut seen: std::collections::HashSet<String> = all.iter().map(|b| b.name.clone()).collect();
+    for full in remotes.lines() {
+        let Some(short) = full.strip_prefix("refs/remotes/") else {
+            continue;
+        };
+        let Some((_, name)) = short.split_once('/') else {
+            continue;
+        };
+        if name == "HEAD" || !seen.insert(name.to_string()) {
+            continue;
+        }
+        all.push(Branch {
+            name: name.to_string(),
+            is_current: false,
+            is_worktree: false,
+            remote: Some(short.to_string()),
+        });
+    }
+    Ok(all)
+}
+
+fn local_branches() -> Result<Vec<Branch>> {
     let out = stdout_of(&[
         "for-each-ref",
         "--sort=refname",
@@ -62,6 +98,7 @@ pub fn branches() -> Result<Vec<Branch>> {
                 name: name.to_string(),
                 is_current,
                 is_worktree: !is_current && !worktree.is_empty(),
+                remote: None,
             })
         })
         .collect())
@@ -144,11 +181,15 @@ fn run_delete(name: &str, force: bool) -> Result<(bool, String)> {
 }
 
 /// Runs `git switch` with inherited stdio so the user sees git's output.
-pub fn switch(name: &str) -> Result<i32> {
-    let status = Command::new("git")
-        .args(["switch", name])
-        .status()
-        .context("failed to run git")?;
+/// For a remote-only branch, `remote` creates a local branch tracking it.
+pub fn switch(name: &str, remote: Option<&str>) -> Result<i32> {
+    let mut cmd = Command::new("git");
+    cmd.arg("switch");
+    match remote {
+        Some(r) => cmd.args(["--track", r]),
+        None => cmd.arg(name),
+    };
+    let status = cmd.status().context("failed to run git")?;
     Ok(status.code().unwrap_or(1))
 }
 
