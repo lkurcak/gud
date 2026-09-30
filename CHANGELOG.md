@@ -17,8 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `gud b`
-  - `d`/`D` can now delete the current branch.
+- `gud b` can now delete the current branch.
 
 ## [0.1.4] - 2026-09-30
 
