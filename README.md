@@ -25,16 +25,6 @@ gud b   # interactively switch to or delete local branches
 gud l   # browse commits; tag, soft/hard reset or edit a commit message
 ```
 
-While open, gud fetches from all remotes in the background: once at startup, then
-every 5 minutes. Fetches never prompt for credentials; if a password or passphrase
-would be needed, the fetch is silently skipped.
-
-```sh
-gud b --no-fetch                        # disable for one run
-git config --global gud.autoFetch false # disable permanently
-git config gud.fetchInterval 60         # seconds between fetches (0 = only at startup)
-```
-
 ## License
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.

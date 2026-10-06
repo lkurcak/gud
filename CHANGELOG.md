@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `gud b` and `gud l` fetch from all remotes in the background, at startup and then
-  every 5 minutes, refreshing the view when done. Fetches never prompt for credentials.
+  every 30 seconds, refreshing the view when done. Fetches never prompt for credentials.
   Disable with `--no-fetch` or `git config gud.autoFetch false`; set the interval in
   seconds with `gud.fetchInterval` (`0` fetches only at startup).
 
