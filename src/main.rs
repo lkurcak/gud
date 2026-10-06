@@ -19,16 +19,18 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Interactively switch to or delete local branches
-    B,
+    #[command(visible_aliases = ["b", "switch"])]
+    Branch,
     /// Browse commits; soft/hard reset to one or edit its message
-    L,
+    #[command(visible_alias = "l")]
+    Log,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let code = match cli.command {
-        Command::B => branch::run(!cli.no_fetch)?,
-        Command::L => log::run(!cli.no_fetch)?,
+        Command::Branch => branch::run(!cli.no_fetch)?,
+        Command::Log => log::run(!cli.no_fetch)?,
     };
     std::process::exit(code);
 }
