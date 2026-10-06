@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `gud branch` and `gud log` fetch from all remotes in the background, at startup and then
+  every 30 seconds, refreshing the view when done. Fetches never prompt for credentials.
+  Disable with `--no-fetch` or `git config gud.autoFetch false`; set the interval in
+  seconds with `gud.fetchInterval` (`0` fetches only at startup).
+
 ### Changed
 
 - Commands now have long canonical names: `gud branch` and `gud log`.

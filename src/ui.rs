@@ -1,4 +1,27 @@
-use crossterm::event::{KeyCode, KeyModifiers};
+use crate::fetch::Fetcher;
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use std::time::Duration;
+
+pub enum Input {
+    Event(Event),
+    /// A background fetch finished; remote refs may have changed.
+    Fetched,
+}
+
+/// Waits for the next terminal event or, if fetching in the background, a completed fetch.
+pub fn next_input(fetcher: Option<&Fetcher>) -> std::io::Result<Input> {
+    let Some(fetcher) = fetcher else {
+        return event::read().map(Input::Event);
+    };
+    loop {
+        if fetcher.fetched() {
+            return Ok(Input::Fetched);
+        }
+        if event::poll(Duration::from_millis(200))? {
+            return event::read().map(Input::Event);
+        }
+    }
+}
 
 pub fn truncate(s: &str, max: usize) -> String {
     s.chars().take(max).collect()

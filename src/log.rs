@@ -1,9 +1,10 @@
+use crate::fetch::Fetcher;
 use crate::git::{self, Commit};
-use crate::ui::{to_u16, truncate};
+use crate::ui::{Input, next_input, to_u16, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+    event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{self, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
@@ -67,6 +68,7 @@ struct State {
     preview: Option<Preview>,
     /// Commit being tagged, the tag name typed so far, and whether the tag is annotated.
     tag_input: Option<(usize, String, bool)>,
+    fetcher: Option<Fetcher>,
 }
 
 impl State {
@@ -91,7 +93,7 @@ impl State {
     }
 }
 
-pub fn run() -> Result<i32> {
+pub fn run(fetch: bool) -> Result<i32> {
     let commits = match git::commits(PAGE) {
         Ok(c) if !c.is_empty() => c,
         _ => {
@@ -108,6 +110,7 @@ pub fn run() -> Result<i32> {
         confirm_hard_reset: None,
         preview: None,
         tag_input: None,
+        fetcher: Fetcher::start(fetch),
     };
 
     let _guard = TerminalGuard::new()?;
@@ -118,18 +121,23 @@ pub fn run() -> Result<i32> {
 fn event_loop(state: &mut State) -> Result<()> {
     loop {
         draw(state)?;
-        let (code, modifiers) = match event::read()? {
-            Event::Key(KeyEvent {
+        let (code, modifiers) = match next_input(state.fetcher.as_ref())? {
+            Input::Event(Event::Key(KeyEvent {
                 code,
                 modifiers,
                 kind: KeyEventKind::Press,
                 ..
-            }) => (code, modifiers),
-            Event::Resize(..) => {
+            })) => (code, modifiers),
+            Input::Event(Event::Resize(..)) => {
                 execute!(stdout(), terminal::Clear(ClearType::All))?;
                 continue;
             }
-            _ => continue,
+            // Refresh ref decorations such as `origin/main`.
+            Input::Fetched => {
+                state.reload()?;
+                continue;
+            }
+            Input::Event(_) => continue,
         };
         if code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL) {
             return Ok(());

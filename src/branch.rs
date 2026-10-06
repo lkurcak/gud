@@ -1,9 +1,10 @@
+use crate::fetch::Fetcher;
 use crate::git::{self, Branch};
-use crate::ui::{LineEditor, to_u16, to_u32, truncate};
+use crate::ui::{Input, LineEditor, next_input, to_u16, to_u32, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+    event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     execute, queue,
     style::{Attribute, Color, Print, ResetColor, SetAttribute, SetForegroundColor},
     terminal::{self, ClearType},
@@ -61,6 +62,7 @@ struct State {
     selected: usize,
     offset: usize,
     message: Option<(bool, String)>,
+    fetcher: Option<Fetcher>,
 }
 
 fn label(b: &Branch) -> &str {
@@ -121,6 +123,21 @@ impl State {
         self.refilter();
     }
 
+    /// Reloads after a background fetch, keeping the same branch selected if it still exists.
+    fn fetched(&mut self) -> Result<()> {
+        let selected = self.selected_branch().map(|b| label(b).to_string());
+        self.reload()?;
+        if let Some(selected) = selected
+            && let Some(i) = self
+                .view
+                .iter()
+                .position(|m| label(&self.branches[m.index]) == selected)
+        {
+            self.selected = i;
+        }
+        Ok(())
+    }
+
     fn selected_branch(&self) -> Option<&Branch> {
         self.view
             .get(self.selected)
@@ -128,7 +145,7 @@ impl State {
     }
 }
 
-pub fn run() -> Result<i32> {
+pub fn run(fetch: bool) -> Result<i32> {
     let branches = git::branches(false)?;
     if branches.is_empty() {
         eprintln!("No local branches.");
@@ -144,6 +161,7 @@ pub fn run() -> Result<i32> {
         selected: 0,
         offset: 0,
         message: None,
+        fetcher: Fetcher::start(fetch),
     };
     state.refilter();
 
@@ -161,14 +179,18 @@ pub fn run() -> Result<i32> {
 fn event_loop(state: &mut State) -> Result<Outcome> {
     loop {
         draw(state)?;
-        let Event::Key(KeyEvent {
-            code,
-            modifiers,
-            kind: KeyEventKind::Press,
-            ..
-        }) = event::read()?
-        else {
-            continue;
+        let (code, modifiers) = match next_input(state.fetcher.as_ref())? {
+            Input::Event(Event::Key(KeyEvent {
+                code,
+                modifiers,
+                kind: KeyEventKind::Press,
+                ..
+            })) => (code, modifiers),
+            Input::Fetched => {
+                state.fetched()?;
+                continue;
+            }
+            Input::Event(_) => continue,
         };
         let last = state.view.len().saturating_sub(1);
         if state.searching {
