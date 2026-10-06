@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `gud log` shows fetched commits on the current branch's upstream that haven't been pulled
+  yet, marked with `↓`, plus how many commits there are to pull and push.
+- `gud log`: `p` pulls and `P` pushes the current branch. A branch without an upstream is
+  pushed to `origin` (or the only remote) and set to track it. If the remote branch has
+  diverged, e.g. after editing a pushed commit's message, `P` offers a force push with lease.
+
 ## [0.1.6] - 2026-10-06
 
 ### Added

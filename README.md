@@ -22,7 +22,7 @@ cargo install gud
 
 ```sh
 gud branch  # (aliases: b, switch) interactively switch to or delete local branches
-gud log     # (alias: l) browse commits; tag, soft/hard reset or edit a commit message
+gud log     # (alias: l) browse commits; tag, soft/hard reset, edit a commit message, pull or push
 ```
 
 ## License

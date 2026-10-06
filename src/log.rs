@@ -1,5 +1,5 @@
 use crate::fetch::Fetcher;
-use crate::git::{self, Commit};
+use crate::git::{self, Commit, Pushed, Tracking};
 use crate::ui::{Input, next_input, to_u16, truncate};
 use anyhow::Result;
 use crossterm::{
@@ -51,6 +51,29 @@ fn suspended<T>(f: impl FnOnce() -> T) -> Result<T> {
     Ok(result)
 }
 
+/// Runs `f` with the terminal out of raw mode and the cursor on the bottom row,
+/// so that if git has to prompt for credentials, the prompt is visible and usable.
+fn attended<T>(f: impl FnOnce() -> T) -> Result<T> {
+    let (_, height) = terminal::size()?;
+    execute!(
+        stdout(),
+        cursor::MoveTo(0, height.saturating_sub(1)),
+        terminal::Clear(ClearType::CurrentLine),
+        cursor::Show
+    )?;
+    terminal::disable_raw_mode()?;
+    let result = f();
+    terminal::enable_raw_mode()?;
+    execute!(stdout(), cursor::Hide, terminal::Clear(ClearType::All))?;
+    Ok(result)
+}
+
+/// An action awaiting a y/N answer.
+enum Confirm {
+    HardReset(usize),
+    ForcePush,
+}
+
 struct Preview {
     hash: String,
     width: usize,
@@ -63,17 +86,18 @@ struct State {
     selected: usize,
     offset: usize,
     message: Option<(bool, String)>,
-    /// Commit awaiting confirmation of a hard reset.
-    confirm_hard_reset: Option<usize>,
+    confirm: Option<Confirm>,
     preview: Option<Preview>,
     /// Commit being tagged, the tag name typed so far, and whether the tag is annotated.
     tag_input: Option<(usize, String, bool)>,
     fetcher: Option<Fetcher>,
+    tracking: Option<Tracking>,
 }
 
 impl State {
     fn reload(&mut self) -> Result<()> {
         self.commits = git::commits(self.limit)?;
+        self.tracking = git::tracking();
         self.selected = self.selected.min(self.commits.len().saturating_sub(1));
         Ok(())
     }
@@ -107,10 +131,11 @@ pub fn run(fetch: bool) -> Result<i32> {
         selected: 0,
         offset: 0,
         message: None,
-        confirm_hard_reset: None,
+        confirm: None,
         preview: None,
         tag_input: None,
         fetcher: Fetcher::start(fetch),
+        tracking: git::tracking(),
     };
 
     let _guard = TerminalGuard::new()?;
@@ -132,7 +157,7 @@ fn event_loop(state: &mut State) -> Result<()> {
                 execute!(stdout(), terminal::Clear(ClearType::All))?;
                 continue;
             }
-            // Refresh ref decorations such as `origin/main`.
+            // Refresh incoming commits and ref decorations such as `origin/main`.
             Input::Fetched => {
                 state.reload()?;
                 continue;
@@ -143,11 +168,17 @@ fn event_loop(state: &mut State) -> Result<()> {
             return Ok(());
         }
 
-        if let Some(index) = state.confirm_hard_reset.take() {
-            if matches!(code, KeyCode::Char('y' | 'Y')) {
-                reset(state, index, true)?;
-            } else {
-                state.message = Some((false, "Hard reset cancelled.".to_string()));
+        if let Some(confirm) = state.confirm.take() {
+            let yes = matches!(code, KeyCode::Char('y' | 'Y'));
+            match confirm {
+                Confirm::HardReset(index) if yes => reset(state, index, true)?,
+                Confirm::HardReset(_) => {
+                    state.message = Some((false, "Hard reset cancelled.".to_string()));
+                }
+                Confirm::ForcePush if yes => push(state, true)?,
+                Confirm::ForcePush => {
+                    state.message = Some((false, "Force push cancelled.".to_string()));
+                }
             }
             continue;
         }
@@ -203,9 +234,11 @@ fn event_loop(state: &mut State) -> Result<()> {
                             c.short
                         ),
                     ));
-                    state.confirm_hard_reset = Some(state.selected);
+                    state.confirm = Some(Confirm::HardReset(state.selected));
                 }
             }
+            KeyCode::Char('p') => pull(state)?,
+            KeyCode::Char('P') => push(state, false)?,
             _ => {}
         }
     }
@@ -213,6 +246,44 @@ fn event_loop(state: &mut State) -> Result<()> {
 
 fn page_size() -> usize {
     terminal::size().map_or(10, |(_, h)| (h as usize).saturating_sub(3).max(1))
+}
+
+/// Shows `message` as in progress while git talks to the remote.
+fn show_busy(state: &mut State, message: String) -> Result<()> {
+    state.message = Some((true, message));
+    state.preview = None;
+    draw(state)
+}
+
+fn pull(state: &mut State) -> Result<()> {
+    if let Some(t) = &state.tracking {
+        show_busy(state, format!("Pulling from {}…", t.upstream))?;
+    }
+    state.message = Some(attended(git::pull)??);
+    state.selected = 0;
+    state.offset = 0;
+    state.reload()
+}
+
+fn push(state: &mut State, force: bool) -> Result<()> {
+    let target = state
+        .tracking
+        .as_ref()
+        .map_or_else(|| "remote".to_string(), |t| t.upstream.clone());
+    let verb = if force { "Force pushing" } else { "Pushing" };
+    show_busy(state, format!("{verb} to {target}…"))?;
+    state.message = Some(match attended(|| git::push(force))?? {
+        Pushed::Ok(msg) => (true, msg),
+        Pushed::Failed(msg) => (false, msg),
+        Pushed::Diverged => {
+            state.confirm = Some(Confirm::ForcePush);
+            (
+                false,
+                format!("{target} has diverged; force push (with lease) to replace it? [y/N]"),
+            )
+        }
+    });
+    state.reload()
 }
 
 fn reset(state: &mut State, index: usize, hard: bool) -> Result<()> {
@@ -296,6 +367,13 @@ fn edit_message(state: &mut State) -> Result<()> {
     let Some(c) = state.current() else {
         return Ok(());
     };
+    if c.incoming {
+        state.message = Some((
+            false,
+            "That commit is not on this branch yet; pull it first.".to_string(),
+        ));
+        return Ok(());
+    }
     let (hash, short) = (c.hash.clone(), c.short.clone());
     let original = git::message(&hash)?;
     let comment = git::comment_char();
@@ -407,7 +485,7 @@ fn draw(state: &mut State) -> Result<()> {
         queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
         row += 1;
     } else if let Some((ok, msg)) = &state.message {
-        let color = if state.confirm_hard_reset.is_some() {
+        let color = if state.confirm.is_some() {
             Color::Yellow
         } else if *ok {
             Color::Green
@@ -421,15 +499,34 @@ fn draw(state: &mut State) -> Result<()> {
         row += 1;
     }
     queue!(out, cursor::MoveTo(0, to_u16(row)))?;
+    let status = tracking_status(state.tracking.as_ref());
+    let status_width = status.chars().count().min(width);
+    print_span(&mut out, Some(Color::Magenta), &status, status_width)?;
     print_span(
         &mut out,
         Some(Color::DarkGrey),
-        "↑/k ↓/j move · enter show · e edit message · t/T tag/annotated tag · r soft reset · R hard reset · q quit",
-        width,
+        "↑/k ↓/j move · enter show · e edit message · t/T tag/annotated tag · r soft reset · R hard reset · p pull · P push · q quit",
+        width - status_width,
     )?;
     queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
     out.flush()?;
     Ok(())
+}
+
+/// E.g. `origin/main: 3 to pull, 1 to push · `, or nothing when in sync or untracked.
+fn tracking_status(tracking: Option<&Tracking>) -> String {
+    let Some(t) = tracking else {
+        return String::new();
+    };
+    let counts: Vec<String> = [(t.behind, "to pull"), (t.ahead, "to push")]
+        .into_iter()
+        .filter(|(n, _)| *n > 0)
+        .map(|(n, what)| format!("{n} {what}"))
+        .collect();
+    if counts.is_empty() {
+        return String::new();
+    }
+    format!("{}: {} · ", t.upstream, counts.join(", "))
 }
 
 fn update_preview(state: &mut State, width: usize) {
@@ -472,13 +569,24 @@ fn draw_commit(out: &mut impl Write, c: &Commit, selected: bool, width: usize) -
         queue!(out, SetAttribute(Attribute::Reset), ResetColor)?;
         return Ok(());
     }
-    let spans = [
-        (None, "  "),
-        (Some(Color::Yellow), c.short.as_str()),
-        (None, " "),
-        (Some(Color::Green), refs.as_str()),
-        (None, c.subject.as_str()),
-    ];
+    let spans = if c.incoming {
+        // Fetched but not pulled yet.
+        [
+            (Some(Color::Magenta), "↓ "),
+            (Some(Color::DarkGrey), c.short.as_str()),
+            (None, " "),
+            (Some(Color::Green), refs.as_str()),
+            (Some(Color::DarkGrey), c.subject.as_str()),
+        ]
+    } else {
+        [
+            (None, "  "),
+            (Some(Color::Yellow), c.short.as_str()),
+            (None, " "),
+            (Some(Color::Green), refs.as_str()),
+            (None, c.subject.as_str()),
+        ]
+    };
     let mut left = width;
     for (color, text) in spans {
         let text = truncate(text, left);

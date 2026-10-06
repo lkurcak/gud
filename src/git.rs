@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -193,36 +193,91 @@ pub fn switch(name: &str, remote: Option<&str>) -> Result<i32> {
     Ok(status.code().unwrap_or(1))
 }
 
+/// Revision syntax for the current branch's upstream.
+#[allow(clippy::literal_string_with_formatting_args)]
+const UPSTREAM: &str = "@{upstream}";
+
 pub struct Commit {
     pub hash: String,
     pub short: String,
     pub refs: String,
     pub subject: String,
+    /// On the upstream branch but not yet in HEAD, i.e. would arrive with a pull.
+    pub incoming: bool,
 }
 
-/// Up to `limit` commits reachable from HEAD, newest first.
+/// Up to `limit` commits reachable from HEAD or from its upstream, newest first.
+/// Fetched commits that are not merged yet are included so they show up before a pull.
 pub fn commits(limit: usize) -> Result<Vec<Commit>> {
-    let out = stdout_of(&[
-        "log",
-        "--format=%H%x1f%h%x1f%D%x1f%s%x1e",
-        &format!("-n{limit}"),
-        "HEAD",
-        "--",
-    ])?;
+    let incoming: HashSet<String> = if upstream().is_some() {
+        stdout_of(&["rev-list", &format!("HEAD..{UPSTREAM}"), "--"])?
+            .lines()
+            .map(String::from)
+            .collect()
+    } else {
+        HashSet::new()
+    };
+    let limit = format!("-n{limit}");
+    let mut args = vec!["log", "--format=%H%x1f%h%x1f%D%x1f%s%x1e", &limit];
+    if !incoming.is_empty() {
+        // Keep incoming commits together rather than interleaved by date with local ones.
+        args.extend(["--topo-order", UPSTREAM]);
+    }
+    args.extend(["HEAD", "--"]);
+    let out = stdout_of(&args)?;
     Ok(out
         .split('\x1e')
         .map(|r| r.trim_start_matches('\n'))
         .filter(|r| !r.is_empty())
         .filter_map(|r| {
             let mut f = r.splitn(4, '\x1f');
+            let hash = f.next()?.to_string();
             Some(Commit {
-                hash: f.next()?.to_string(),
+                incoming: incoming.contains(&hash),
+                hash,
                 short: f.next()?.to_string(),
                 refs: f.next()?.to_string(),
                 subject: f.next()?.to_string(),
             })
         })
         .collect())
+}
+
+/// The current branch's upstream (e.g. `origin/main`), if it has one that exists.
+pub fn upstream() -> Option<String> {
+    stdout_of(&[
+        "rev-parse",
+        "--abbrev-ref",
+        "--symbolic-full-name",
+        UPSTREAM,
+    ])
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+}
+
+/// The current branch's upstream and how many commits HEAD is ahead of and behind it.
+pub struct Tracking {
+    pub upstream: String,
+    pub ahead: usize,
+    pub behind: usize,
+}
+
+pub fn tracking() -> Option<Tracking> {
+    let upstream = upstream()?;
+    let counts = stdout_of(&[
+        "rev-list",
+        "--left-right",
+        "--count",
+        &format!("HEAD...{UPSTREAM}"),
+    ])
+    .ok()?;
+    let (ahead, behind) = counts.trim().split_once('\t')?;
+    Some(Tracking {
+        upstream,
+        ahead: ahead.parse().ok()?,
+        behind: behind.parse().ok()?,
+    })
 }
 
 /// Header, message and diffstat of a commit, sized for a pane `width` columns wide.
@@ -475,4 +530,114 @@ pub fn fetch_quietly() -> bool {
         .env("SSH_ASKPASS", "false")
         .env("SSH_ASKPASS_REQUIRE", "force");
     cmd.status().is_ok_and(|s| s.success())
+}
+
+/// Runs git with its output captured but stdin still attached to the terminal, so it
+/// can prompt for credentials if it must (the caller is expected to leave raw mode).
+fn git_attended(args: &[&str]) -> Result<Output> {
+    Command::new("git")
+        .args(args)
+        .stdin(Stdio::inherit())
+        .output()
+        .context("failed to run git")
+}
+
+/// Picks the most telling line of a failed command's output for a one-line message.
+fn failure_summary(out: &Output) -> String {
+    let text = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let lines: Vec<&str> = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with("hint:"))
+        .collect();
+    lines
+        .iter()
+        .find(|l| l.starts_with("! ") || l.starts_with("fatal:") || l.starts_with("error:"))
+        .or_else(|| lines.last())
+        .map_or_else(|| "git failed".to_string(), |l| (*l).to_string())
+}
+
+fn head() -> Option<String> {
+    stdout_of(&["rev-parse", "--short", "HEAD"])
+        .ok()
+        .map(|s| s.trim().to_string())
+}
+
+/// Runs `git pull`, returning a one-line message and whether it succeeded.
+pub fn pull() -> Result<(bool, String)> {
+    let Some(upstream) = upstream() else {
+        return Ok((
+            false,
+            "The current branch has no upstream to pull from".into(),
+        ));
+    };
+    let before = head();
+    let out = git_attended(&["pull"])?;
+    if !out.status.success() {
+        return Ok((false, failure_summary(&out)));
+    }
+    let after = head();
+    Ok((
+        true,
+        match (before, after) {
+            (Some(b), Some(a)) if a != b => format!("Pulled from {upstream}: {b} → {a}."),
+            _ => format!("Already up to date with {upstream}."),
+        },
+    ))
+}
+
+/// The outcome of [`push`].
+pub enum Pushed {
+    Ok(String),
+    /// The remote branch has diverged; a force push would replace it.
+    Diverged,
+    Failed(String),
+}
+
+/// Runs `git push`, or `git push --force-with-lease` if `force`. A branch without an
+/// upstream is pushed to `remote.pushDefault`, the only remote, or `origin`, and starts
+/// tracking it.
+pub fn push(force: bool) -> Result<Pushed> {
+    let mut args = vec!["push"];
+    if force {
+        // `--force-if-includes` keeps the lease meaningful despite background fetches.
+        args.extend(["--force-with-lease", "--force-if-includes"]);
+    }
+    let remote;
+    if upstream().is_none() {
+        let Some(r) = push_remote() else {
+            return Ok(Pushed::Failed(
+                "No upstream, and no single remote or `origin` to push to".into(),
+            ));
+        };
+        remote = r;
+        args.extend(["--set-upstream", &remote, "HEAD"]);
+    }
+    let out = git_attended(&args)?;
+    if out.status.success() {
+        let target = upstream().unwrap_or_else(|| "remote".into());
+        let verb = if force { "Force pushed" } else { "Pushed" };
+        return Ok(Pushed::Ok(format!("{verb} to {target}.")));
+    }
+    let summary = failure_summary(&out);
+    if !force && summary.contains("[rejected]") && summary.contains("non-fast-forward") {
+        return Ok(Pushed::Diverged);
+    }
+    Ok(Pushed::Failed(summary))
+}
+
+fn push_remote() -> Option<String> {
+    if let Ok(r) = stdout_of(&["config", "--get", "remote.pushDefault"]) {
+        return Some(r.trim().to_string());
+    }
+    let remotes = stdout_of(&["remote"]).ok()?;
+    let remotes: Vec<&str> = remotes.lines().filter(|l| !l.is_empty()).collect();
+    match remotes.as_slice() {
+        [only] => Some((*only).to_string()),
+        _ => remotes.contains(&"origin").then(|| "origin".to_string()),
+    }
 }
