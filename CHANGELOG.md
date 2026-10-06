@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Commands now have long canonical names: `gud branch` and `gud log`.
+  `b` and `l` remain as aliases, and `gud switch` is also an alias for `gud branch`.
+
 ## [0.1.5] - 2026-09-30
 
 ### Added
