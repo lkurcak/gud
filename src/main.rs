@@ -15,8 +15,10 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Interactively switch to or delete local branches
+    #[command(visible_aliases = ["branch", "switch"])]
     B,
     /// Browse commits; soft/hard reset to one or edit its message
+    #[command(visible_alias = "log")]
     L,
 }
 
