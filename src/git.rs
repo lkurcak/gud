@@ -434,3 +434,45 @@ fn rewrite_commit(
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
+
+/// Whether background fetching is on (`gud.autoFetch`, default true) and how many
+/// seconds to wait between fetches (`gud.fetchInterval`, default 300; 0 fetches once).
+pub fn auto_fetch_config() -> (bool, u64) {
+    let enabled = stdout_of(&["config", "--type=bool", "--get", "gud.autoFetch"])
+        .map_or(true, |s| s.trim() != "false");
+    let interval = stdout_of(&["config", "--type=int", "--get", "gud.fetchInterval"])
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(300);
+    (enabled, interval)
+}
+
+pub fn has_remotes() -> bool {
+    stdout_of(&["remote"]).is_ok_and(|s| !s.trim().is_empty())
+}
+
+/// Runs `git fetch --all` without ever prompting: if credentials are needed and not
+/// available from a credential helper or ssh-agent, the fetch just fails quietly.
+pub fn fetch_quietly() -> bool {
+    let mut cmd = Command::new("git");
+    cmd.args(["fetch", "--all", "--quiet"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "never");
+    // ssh reads passphrases straight from the terminal, which would garble the UI.
+    // Respect a custom ssh command, but otherwise forbid ssh from asking anything.
+    let custom_ssh = std::env::var_os("GIT_SSH_COMMAND").is_some()
+        || std::env::var_os("GIT_SSH").is_some()
+        || stdout_of(&["config", "--get", "core.sshCommand"]).is_ok();
+    if !custom_ssh {
+        cmd.env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+    }
+    // Make any askpass fallback fail instead of popping up a prompt.
+    #[cfg(not(windows))]
+    cmd.env("GIT_ASKPASS", "false")
+        .env("SSH_ASKPASS", "false")
+        .env("SSH_ASKPASS_REQUIRE", "force");
+    cmd.status().is_ok_and(|s| s.success())
+}
