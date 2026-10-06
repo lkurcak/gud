@@ -436,14 +436,14 @@ fn rewrite_commit(
 }
 
 /// Whether background fetching is on (`gud.autoFetch`, default true) and how many
-/// seconds to wait between fetches (`gud.fetchInterval`, default 300; 0 fetches once).
+/// seconds to wait between fetches (`gud.fetchInterval`, default 30; 0 fetches once).
 pub fn auto_fetch_config() -> (bool, u64) {
     let enabled = stdout_of(&["config", "--type=bool", "--get", "gud.autoFetch"])
         .map_or(true, |s| s.trim() != "false");
     let interval = stdout_of(&["config", "--type=int", "--get", "gud.fetchInterval"])
         .ok()
         .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(300);
+        .unwrap_or(30);
     (enabled, interval)
 }
 
