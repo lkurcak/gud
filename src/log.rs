@@ -1,6 +1,6 @@
 use crate::fetch::Fetcher;
 use crate::git::{self, Commit};
-use crate::ui::{Input, next_input, to_u16, truncate};
+use crate::ui::{Input, LineEditor, next_input, to_u16, truncate};
 use anyhow::Result;
 use crossterm::{
     cursor,
@@ -67,7 +67,7 @@ struct State {
     confirm_hard_reset: Option<usize>,
     preview: Option<Preview>,
     /// Commit being tagged, the tag name typed so far, and whether the tag is annotated.
-    tag_input: Option<(usize, String, bool)>,
+    tag_input: Option<(usize, LineEditor, bool)>,
     fetcher: Option<Fetcher>,
 }
 
@@ -157,16 +157,11 @@ fn event_loop(state: &mut State) -> Result<()> {
                 KeyCode::Esc => {
                     state.message = Some((false, "Tag cancelled.".to_string()));
                 }
-                KeyCode::Enter => tag(state, index, name.trim(), annotated)?,
-                KeyCode::Backspace => {
-                    name.pop();
+                KeyCode::Enter => tag(state, index, name.text().trim(), annotated)?,
+                _ => {
+                    name.handle(code, modifiers);
                     state.tag_input = Some((index, name, annotated));
                 }
-                KeyCode::Char(ch) if !modifiers.contains(KeyModifiers::CONTROL) => {
-                    name.push(ch);
-                    state.tag_input = Some((index, name, annotated));
-                }
-                _ => state.tag_input = Some((index, name, annotated)),
             }
             continue;
         }
@@ -191,7 +186,7 @@ fn event_loop(state: &mut State) -> Result<()> {
             KeyCode::Char(key @ ('t' | 'T')) => {
                 if state.current().is_some() {
                     state.message = None;
-                    state.tag_input = Some((state.selected, String::new(), key == 'T'));
+                    state.tag_input = Some((state.selected, LineEditor::default(), key == 'T'));
                 }
             }
             KeyCode::Char('R') => {
@@ -397,13 +392,27 @@ fn draw(state: &mut State) -> Result<()> {
     let mut row = body_height;
     if let Some((_, name, annotated)) = &state.tag_input {
         let kind = if *annotated { "Annotated tag" } else { "Tag" };
+        let (before, at, after) = name.split_at_cursor();
         queue!(out, cursor::MoveTo(0, to_u16(row)))?;
-        print_span(
-            &mut out,
-            Some(Color::Yellow),
-            &format!("{kind} name: {name}█  (enter to continue, esc to cancel)"),
-            width,
-        )?;
+        // Print up to `width` chars: the prompt, then the cursor in reverse video, then the rest.
+        let head = truncate(&format!("{kind} name: {before}"), width);
+        let mut used = head.chars().count();
+        queue!(out, SetForegroundColor(Color::Yellow), Print(head))?;
+        if used < width {
+            queue!(
+                out,
+                SetAttribute(Attribute::Reverse),
+                Print(at.unwrap_or(' ')),
+                SetAttribute(Attribute::Reset),
+                SetForegroundColor(Color::Yellow),
+            )?;
+            used += 1;
+        }
+        let tail = truncate(
+            &format!("{after}  (enter to continue, esc to cancel)"),
+            width - used,
+        );
+        queue!(out, Print(tail), ResetColor)?;
         queue!(out, terminal::Clear(ClearType::UntilNewLine))?;
         row += 1;
     } else if let Some((ok, msg)) = &state.message {
