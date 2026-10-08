@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The tag name prompt in `gud log` now supports the same readline/emacs-style editing as the
+  `gud branch` filter: move with arrows, `Ctrl-A`/`Ctrl-E`, `Ctrl-B`/`Ctrl-F`, `Alt-B`/`Alt-F`;
+  delete with `Ctrl-D`, `Ctrl-W`, `Alt-D`, `Ctrl-K`, `Ctrl-U`; paste the last deletion with
+  `Ctrl-Y`. The cursor is shown in place instead of always at the end.
+- `Ctrl-Backspace` and `Ctrl-Delete` delete a word in text inputs.
+
 ## [0.1.6] - 2026-10-06
 
 ### Added

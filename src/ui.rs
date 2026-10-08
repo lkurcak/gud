@@ -115,17 +115,21 @@ impl LineEditor {
             KeyCode::Char('b') if alt => self.cursor = self.word_start(),
             KeyCode::Char('f') if alt => self.cursor = self.word_end(),
             KeyCode::Char('h') if ctrl => return self.backspace(),
-            KeyCode::Backspace if alt => {
+            KeyCode::Backspace if alt || ctrl => {
                 self.kill(self.word_start(), self.cursor);
                 return true;
             }
             KeyCode::Backspace => return self.backspace(),
             KeyCode::Char('d') if ctrl => return self.delete(),
-            KeyCode::Delete => return self.delete(),
             KeyCode::Char('d') if alt => {
                 self.kill(self.cursor, self.word_end());
                 return true;
             }
+            KeyCode::Delete if alt || ctrl => {
+                self.kill(self.cursor, self.word_end());
+                return true;
+            }
+            KeyCode::Delete => return self.delete(),
             KeyCode::Char('w') if ctrl => {
                 self.kill(self.word_start(), self.cursor);
                 return true;
@@ -206,5 +210,25 @@ mod tests {
         ctrl(&mut e, 'u');
         assert_eq!(e.text(), "");
         assert!(!e.handle(KeyCode::Backspace, KeyModifiers::NONE));
+    }
+
+    #[test]
+    fn edits_mid_line() {
+        let mut e = LineEditor::default();
+        type_str(&mut e, "v1.2.3-rc");
+        e.handle(KeyCode::Left, KeyModifiers::NONE);
+        e.handle(KeyCode::Left, KeyModifiers::NONE);
+        e.handle(KeyCode::Backspace, KeyModifiers::NONE);
+        type_str(&mut e, "_");
+        assert_eq!(e.text(), "v1.2.3_rc");
+        e.handle(KeyCode::Backspace, KeyModifiers::CONTROL);
+        assert_eq!(e.text(), "v1.2.rc");
+        ctrl(&mut e, 'a');
+        e.handle(KeyCode::Delete, KeyModifiers::CONTROL);
+        assert_eq!(e.text(), ".2.rc");
+        assert_eq!(
+            e.split_at_cursor(),
+            (String::new(), Some('.'), "2.rc".into())
+        );
     }
 }
