@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-10-10
+
+### Added
+
+- Prebuilt binaries for Windows, macOS and Linux are attached to each
+  [GitHub release](https://github.com/lkurcak/gud/releases).
+
+## [0.1.7] - 2026-10-08
+
 ### Changed
 
 - The tag name prompt in `gud log` now supports the same readline/emacs-style editing as the
@@ -73,7 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `d` deletes the selected branch; `D` force-deletes it.
   - `q`, `Esc` or `Ctrl-C` quits.
 
-[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/lkurcak/gud/compare/v0.1.7...v0.1.8
+[0.1.7]: https://github.com/lkurcak/gud/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/lkurcak/gud/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/lkurcak/gud/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/lkurcak/gud/compare/v0.1.3...v0.1.4

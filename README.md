@@ -18,6 +18,8 @@ or
 cargo install gud
 ```
 
+or download a prebuilt binary from the [releases page](https://github.com/lkurcak/gud/releases).
+
 ## Usage
 
 ```sh
