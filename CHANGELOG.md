@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-10-10
+
+### Added
+
+- Prebuilt binaries for Windows on ARM.
+
 ## [0.1.8] - 2026-10-10
 
 ### Added
@@ -82,7 +88,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `d` deletes the selected branch; `D` force-deletes it.
   - `q`, `Esc` or `Ctrl-C` quits.
 
-[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/lkurcak/gud/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/lkurcak/gud/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/lkurcak/gud/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/lkurcak/gud/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/lkurcak/gud/compare/v0.1.5...v0.1.6
