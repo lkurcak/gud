@@ -6,10 +6,16 @@
 version: 2
 updates:
   - package-ecosystem: "cargo" # See documentation for possible values
+    commit-message:
+      prefix: "chore"
+      include: "scope"
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
   - package-ecosystem: "github-actions" # See documentation for possible values
+    commit-message:
+      prefix: "chore"
+      include: "scope"
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
