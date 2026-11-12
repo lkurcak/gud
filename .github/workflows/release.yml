@@ -10,6 +10,9 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      # rust-release's tag job starts the release on the tag it pushes; GitHub
+      # won't start the workflow at all without this.
+      actions: write
     secrets: inherit
     with:
       crates-io: true
